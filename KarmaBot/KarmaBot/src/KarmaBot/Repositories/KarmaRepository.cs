@@ -69,6 +69,14 @@ namespace KarmaBot.Repositories
             return currentKarma;
         }
 
+        public async Task<User> UpdateUser(User user)
+        {
+            var currentUser = await _context.Users.SingleOrDefaultAsync(u => u.SlackUserId == user.SlackUserId);
+            currentUser.Name = user.Name;
+            await _context.SaveChangesAsync();
+            return currentUser;
+        }
+        
         private async Task<User> CreateUser(string slackUserId)
         {
             var user = new User

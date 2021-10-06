@@ -8,5 +8,6 @@ namespace KarmaBot.Repositories
         Task<Karma> GetKarma(string slackUserId);
         Task<Karma> UpdateKarma(string slackUserId, long karmaChange);
         Task<Karma> UpdateKarmaStats(string slackUserId, long karmaChange);
+        Task<User> UpdateUser(User user);
     }
 }

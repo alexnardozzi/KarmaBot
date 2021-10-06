@@ -27,12 +27,12 @@ namespace KarmaBot.Services
         public async Task<bool> UpdateKarma(IncomingSlackPayloadDto payload)
         {
             var text = payload.Event.Text;
-            var slackUserId = text.Substring(text.IndexOf('@') + 1, 9);
+            var slackUserId = text.Substring(2, text.IndexOf('>') - 2);
             var karmaGiverId = payload.Event.User;
 
-            if (slackUserId == karmaGiverId)
+            if (slackUserId.Equals(karmaGiverId))
             {
-                LambdaLogger.Log($"User {karmaGiverId} tried to give karma to themself");
+                LambdaLogger.Log($"--- User {karmaGiverId} tried to give karma to themself");
                 var punishment = await _karmaRepository.UpdateKarma(karmaGiverId, -1);
                 var punishMessage = await PostSlackMessage(payload.Event.Channel, $"<@{slackUserId}> tried to give themself karma. Their karma has been reduced to {punishment.KarmaCount}");
                 return punishMessage;
@@ -41,7 +41,7 @@ namespace KarmaBot.Services
             var karmaChange = DetermineKarmaChange(text);
             if (karmaChange > CHANGE_LIMIT || karmaChange < -CHANGE_LIMIT)
             {
-                LambdaLogger.Log($"Karma Change of {karmaChange} exceeded limit of {CHANGE_LIMIT}");
+                LambdaLogger.Log($"--- Karma Change of {karmaChange} exceeded limit of {CHANGE_LIMIT}");
                 var limitMessage = await PostSlackMessage(payload.Event.Channel, $"Karma change of {karmaChange} exceeded limit of {CHANGE_LIMIT}");
                 return limitMessage;
             }
@@ -51,9 +51,39 @@ namespace KarmaBot.Services
             var updatedKarma = await _karmaRepository.UpdateKarma(slackUserId, karmaChange);
             await _karmaRepository.UpdateKarmaStats(karmaGiverId, karmaChange);
 
-            var changeResult = await PostSlackMessage(payload.Event.Channel, $"<@{slackUserId}>'s karma is now {updatedKarma.KarmaCount}");
+            var userName = updatedKarma.User.Name;
+            if (string.IsNullOrEmpty(userName))
+            {
+                var userDto = await UpdateUser(slackUserId);
+                userName = userDto?.RealName ?? $"<@{slackUserId}>";
+            }
+
+            var changeResult = await PostSlackMessage(payload.Event.Channel, $"{userName}'s karma is now {updatedKarma.KarmaCount}");
             
             return changeResult;
+        }
+
+        private async Task<SlackUserDto> UpdateUser(string slackUserId)
+        {
+            var client = GetClient();
+
+            var result = await client.GetAsync($"https://slack.com/api/users.info?user={slackUserId}");
+            var content = await JsonSerializer.DeserializeAsync<UserPayloadDto>(await result.Content.ReadAsStreamAsync());
+            LambdaLogger.Log($"--- Got response: \n{await result.Content.ReadAsStringAsync()}");
+
+            var userDto = content.User;
+            
+            LambdaLogger.Log($"--- Updating user {userDto.UserId} with name {userDto.RealName}");
+
+            var user = new User
+            {
+                SlackUserId = userDto.UserId,
+                Name = userDto.RealName
+            };
+
+            await _karmaRepository.UpdateUser(user);
+
+            return userDto;
         }
 
         private long DetermineKarmaChange(string message)
@@ -65,13 +95,7 @@ namespace KarmaBot.Services
 
         private async Task<bool> PostSlackMessage(string channel, string text)
         {
-            var client = new HttpClient
-            {
-                DefaultRequestHeaders =
-                {
-                    Authorization = new AuthenticationHeaderValue("Bearer", _slackInfo.Bearer)
-                }
-            };
+            var client = GetClient();
 
             var outgoingPayload = new OutgoingSlackPayload()
             {
@@ -87,6 +111,17 @@ namespace KarmaBot.Services
             LambdaLogger.Log($"--- Response was: \n{JsonConvert.SerializeObject(response)}");
 
             return response.IsSuccessStatusCode;
+        }
+
+        private HttpClient GetClient()
+        {
+            return new HttpClient
+            {
+                DefaultRequestHeaders =
+                {
+                    Authorization = new AuthenticationHeaderValue("Bearer", _slackInfo.Bearer)
+                }
+            };
         }
     }
 }
