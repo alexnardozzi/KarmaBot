@@ -48,7 +48,7 @@ namespace KarmaBot.Controllers
             var text = payload.Event.Text;
 
             // Make sure text starts with a user mention
-            if (!text.StartsWith("<@"))
+            if (!(text.StartsWith("<@") || text.StartsWith("@")))
             {
                 LambdaLogger.Log("--- Ignoring non user-mentioning message");
                 return false;
@@ -76,7 +76,7 @@ namespace KarmaBot.Controllers
             }
             
             // Make sure message follows the correct format eg: "@User ++"
-            if (text.Substring(text.IndexOf('>') + 1).TrimStart().Distinct().Count() != 1)
+            if (text.Substring(text.IndexOf(' ')).TrimStart().Distinct().Count() != 1)
             {
                 LambdaLogger.Log("--- Improperly formed karma command");
                 return false;

@@ -27,14 +27,16 @@ namespace KarmaBot.Services
         public async Task<bool> UpdateKarma(IncomingSlackPayloadDto payload)
         {
             var text = payload.Event.Text;
-            var slackUserId = text.Substring(2, text.IndexOf('>') - 2);
+            var isNonUser = text[0].Equals('@');
+            
+            var targetUserId = isNonUser ? text.Substring(1, text.IndexOf(' ') - 1) : text.Substring(2, text.IndexOf('>') - 2);
             var karmaGiverId = payload.Event.User;
 
-            if (slackUserId.Equals(karmaGiverId))
+            if (targetUserId.Equals(karmaGiverId))
             {
                 LambdaLogger.Log($"--- User {karmaGiverId} tried to give karma to themself");
-                var punishment = await _karmaRepository.UpdateKarma(karmaGiverId, -1);
-                var punishMessage = await PostSlackMessage(payload.Event.Channel, $"<@{slackUserId}> tried to give themself karma. Their karma has been reduced to {punishment.KarmaCount}");
+                var punishment = await _karmaRepository.UpdateKarma(karmaGiverId, -1, isNonUser);
+                var punishMessage = await PostSlackMessage(payload.Event.Channel, $"<@{targetUserId}> tried to give themself karma. Their karma has been reduced to {punishment.KarmaCount}");
                 return punishMessage;
             }
 
@@ -46,16 +48,16 @@ namespace KarmaBot.Services
                 return limitMessage;
             }
             
-            LambdaLogger.Log($"--- Targeted User: {slackUserId}\nKarma Change: {karmaChange}");
+            LambdaLogger.Log($"--- Targeted User: {targetUserId}\nKarma Change: {karmaChange}");
 
-            var updatedKarma = await _karmaRepository.UpdateKarma(slackUserId, karmaChange);
+            var updatedKarma = await _karmaRepository.UpdateKarma(targetUserId, karmaChange, isNonUser);
             await _karmaRepository.UpdateKarmaStats(karmaGiverId, karmaChange);
 
             var userName = updatedKarma.User.Name;
             if (string.IsNullOrEmpty(userName))
             {
-                var userDto = await UpdateUser(slackUserId);
-                userName = userDto?.RealName ?? $"<@{slackUserId}>";
+                var userDto = await UpdateUser(targetUserId);
+                userName = userDto?.RealName ?? $"<@{targetUserId}>";
             }
 
             var changeResult = await PostSlackMessage(payload.Event.Channel, $"{userName}'s karma is now {updatedKarma.KarmaCount}");
@@ -88,7 +90,8 @@ namespace KarmaBot.Services
 
         private long DetermineKarmaChange(string message)
         {
-            var text = message.Substring(message.IndexOf('>') + 1);
+            var delimiterIndex = message.Contains('>') ? message.IndexOf('>') + 1 : message.IndexOf(' ');
+            var text = message.Substring(delimiterIndex);
             var delta = text.Trim().Length - 1;
             return text.Contains('+') ? delta : delta * -1;
         }

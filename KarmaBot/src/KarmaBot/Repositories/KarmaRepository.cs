@@ -15,7 +15,7 @@ namespace KarmaBot.Repositories
             _context = context;
         }
 
-        public async Task<Karma> GetKarma(string slackUserId)
+        public async Task<Karma> GetKarma(string slackUserId, bool isNonUser)
         {
             var user = await _context.Users
                 .Include(u => u.Karma)
@@ -24,15 +24,15 @@ namespace KarmaBot.Repositories
             if (user == null)
             {
                 LambdaLogger.Log($"Creating new user for slack ID: {slackUserId}");
-                user = await CreateUser(slackUserId);
+                user = await CreateUser(slackUserId, isNonUser);
             }
 
             return user.Karma;
         }
 
-        public async Task<Karma> UpdateKarma(string slackUserId, long karmaChange)
+        public async Task<Karma> UpdateKarma(string slackUserId, long karmaChange, bool isNonUser)
         {
-            var currentKarma = await GetKarma(slackUserId);
+            var currentKarma = await GetKarma(slackUserId, isNonUser);
             var updatedKarmaCount = currentKarma.KarmaCount + karmaChange;
 
             currentKarma.KarmaCount = updatedKarmaCount;
@@ -55,7 +55,7 @@ namespace KarmaBot.Repositories
 
         public async Task<Karma> UpdateKarmaStats(string slackUserId, long karmaChange)
         {
-            var currentKarma = await GetKarma(slackUserId);
+            var currentKarma = await GetKarma(slackUserId, false);
             if (karmaChange > 0)
             {
                 currentKarma.PositiveKarmaGiven += karmaChange;
@@ -77,7 +77,7 @@ namespace KarmaBot.Repositories
             return currentUser;
         }
         
-        private async Task<User> CreateUser(string slackUserId)
+        private async Task<User> CreateUser(string slackUserId, bool isNonUser)
         {
             var user = new User
             {
@@ -89,7 +89,9 @@ namespace KarmaBot.Repositories
                     LowestKarma = 0,
                     LowestKarmaDate = DateTime.Now
                 },
-                SlackUserId = slackUserId
+                SlackUserId = slackUserId,
+                IsNonUser = isNonUser,
+                Name = isNonUser ? slackUserId : null
             };
             await _context.Users.AddAsync(user);
             await _context.SaveChangesAsync();

@@ -5,8 +5,8 @@ namespace KarmaBot.Repositories
 {
     public interface IKarmaRepository
     {
-        Task<Karma> GetKarma(string slackUserId);
-        Task<Karma> UpdateKarma(string slackUserId, long karmaChange);
+        Task<Karma> GetKarma(string slackUserId, bool isNonUser);
+        Task<Karma> UpdateKarma(string slackUserId, long karmaChange, bool isNonUser);
         Task<Karma> UpdateKarmaStats(string slackUserId, long karmaChange);
         Task<User> UpdateUser(User user);
     }
