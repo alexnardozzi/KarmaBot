@@ -76,7 +76,8 @@ namespace KarmaBot.Controllers
             }
             
             // Make sure message follows the correct format eg: "@User ++"
-            if (text.Substring(text.IndexOf(' ')).TrimStart().Distinct().Count() != 1)
+            var delimiterIndex = text.Contains('>') ? text.IndexOf('>') + 1 : text.IndexOf(' ');
+            if (text.Substring(delimiterIndex).TrimStart().Distinct().Count() != 1)
             {
                 LambdaLogger.Log("--- Improperly formed karma command");
                 return false;
